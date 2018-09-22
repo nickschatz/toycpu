@@ -1,0 +1,11 @@
+; Test IEEE754 half-precision floating points
+; BC is first float
+load B 0x0
+load C 0x1
+; DE is second float
+load D 0x2
+load E 0x3
+
+; Operate on them and store in FG
+fmul B D F
+stop

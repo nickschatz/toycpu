@@ -72,7 +72,8 @@ if __name__ == '__main__':
         ram_size = 32
         machine = cpu.asm_to_machine(asm, ram_size)
         machine = [0] * ram_size + machine
-        machine[0] = 0xA
-        machine[1] = 0x2
-        machine[2] = 0x2
+        machine[0] = 0b00111000
+        machine[1] = 0b00000000
+        machine[2] = 0b00111000
+        machine[3] = 0b00000000
         sys.stdout.buffer.write(bytes(machine))

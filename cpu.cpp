@@ -1,8 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <unistd.h>
 
 #define RAM_SIZE 512
 #define INSTR_REG 2
+#define DEBUG 0
 
 // Instruction names
 #define NOP   0x0
@@ -38,19 +40,61 @@ void dumpram(uint8_t* ram) {
     dump.close();
 }
 
+uint16_t fadd(uint16_t a, uint16_t b) {
+    // Signed mantissa
+    uint16_t aM = (a >> 5) & (a & 0xFFFFF);
+    uint16_t bM = (b >> 5) & (b & 0xFFFFF);
+    uint16_t aS = (a>>15) & 0b1;
+    uint16_t bS = (b>>15) & 0b1;
+    uint16_t aE = (a>>10) & 0b11111;
+    uint16_t bE = (b>>10) & 0b11111;
+
+    if (aS) {
+        aM = ~aM + 1;
+    }
+    if (bS) {
+        bM = ~bM + 1;
+    }
+
+    int expDiff = aE - bE;
+    if (expDiff > 0) {
+        bE += expDiff;
+        bM >>= expDiff;
+        expDiff = 0;
+    }
+    else if (expDiff < 0) {
+        aE += expDiff;
+        aM >>= expDiff;
+        expDiff = 0;
+    }
+    uint16_t mantissa = aM + bM;
+
+    uint16_t sign = 0;
+    if ((mantissa >> 10) & 1) {
+        sign = 1;
+        mantissa = ~(mantissa-1);
+    }
+    mantissa &= 0xFFFFF;
+    uint16_t result = (sign << 15) & (aE << 10) & mantissa;
+    return result;
+}
+
 
 int main() {
     uint8_t* ram = new uint8_t[RAM_SIZE]; 
     bool halted = false;
     uint8_t* registers = new uint8_t[9];
     registers[1] = 1;
+    // reg 2 is instruction pointer
     registers[2] = 0x20;
 
     // Read contents of ram from stdin
+    char c;
     int iread = 0;
-    while (std::cin >> ram[iread++]) {}
+    while (std::cin.get(c)) {
+        ram[iread++] = c;
+    }
     dumpram(ram);
-    return 0;
 
     while (!halted) {
         int8_t wordLocation = registers[INSTR_REG];
@@ -77,16 +121,28 @@ int main() {
             // todo implement floating point arithmetic BC DE FG
             case FADD: 
             {
-                uint16_t a = registers[op1] << 8 + registers[op1+1]; 
-                uint16_t b = registers[op2] << 8 + registers[op2+1]; 
+                uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
+                uint16_t b = (registers[op2] << 8) + registers[op2+1]; 
+                uint16_t result = fadd(a, b);
+                registers[op3] = result >> 8;
+                registers[op3+1] = result & 0xFFFF;                
+                break;
+            }
+            case FSUB:
+            {
+                uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
+                uint16_t b = (registers[op2] << 8) + registers[op2+1]; 
+                b ^= 0b100000000000000000; // Flip b's sign bit
+                uint16_t result = fadd(a, b);
+                registers[op3] = result >> 8;
+                registers[op3+1] = result & 0xFFFF;
                 
                 break;
             }
-            case FSUB: registers[op3] = registers[op1] - registers[op2]; break;
             case FMUL: 
             {
-                uint16_t a = registers[op1] << 8 + registers[op1+1]; 
-                uint16_t b = registers[op2] << 8 + registers[op2+1];
+                uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
+                uint16_t b = (registers[op2] << 8) + registers[op2+1];
                 uint16_t aM = a & 0xFFFFF;
                 uint16_t bM = b & 0xFFFFF;
                 uint16_t aS = (a>>15) & 0b1;
@@ -94,7 +150,7 @@ int main() {
                 uint16_t aE = (a>>10) & 0b11111;
                 uint16_t bE = (b>>10) & 0b11111;
                 uint16_t sign = aS ^ bS;
-                uint16_t exp = aE + bE - 15;
+                uint16_t exp = aE + bE - 30; // Each offset is 15, so sub 30
                 uint32_t mantissa = aM * bM;
                 if (mantissa & 0xFFFF0000) {
                     mantissa <<= 1;
@@ -102,6 +158,7 @@ int main() {
                 }
                 mantissa &= 0xFFFFF;
                 uint16_t result = (sign << 15) & (exp << 10) & mantissa;
+                std::cout << mantissa << std::endl;
                 registers[op3] = result >> 8;
                 registers[op3+1] = result & 0xFFFF;
                 break;

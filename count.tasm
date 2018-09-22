@@ -1,10 +1,13 @@
-; Counts to [0x0]
+; Counts to [0x0] from [0x1] in steps of [0x2]
 load C 0x0
+load B 0x1
+load D 0x2
 
 begin:
-add B 1 B
-gte B C D
-jump :end D
+move B G
+add B D B
+gte B C E
+jump :end E
 jump :begin 1
 
 end:
