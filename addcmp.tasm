@@ -1,0 +1,21 @@
+; Adds byte at 0x0 to byte at 0x1, compare that to byte at 0x2 and put the larger in 0x4
+
+load B 0x0
+load C 0x1
+load D 0x2
+
+; Add B to C and store in E
+add B C E
+
+; If B*C > D, go to store
+gt E D F
+jump :store F
+; If not, store F in 0x3
+store D 0x3
+; Jump to end to skip storing the wrong thing
+jump :end 1
+store:
+; If so, store E in 0x3
+store E 0x3
+end:
+stop

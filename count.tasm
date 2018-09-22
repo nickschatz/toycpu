@@ -1,0 +1,11 @@
+; Counts to [0x0]
+load C 0x0
+
+begin:
+add B 1 B
+gte B C D
+jump :end D
+jump :begin 1
+
+end:
+stop
