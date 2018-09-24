@@ -4,7 +4,7 @@
 
 #define RAM_SIZE 512
 #define INSTR_REG 2
-#define DEBUG 0
+#define MTS_MASK 0x3FF
 
 // Instruction names
 #define NOP   0x0
@@ -41,41 +41,82 @@ void dumpram(uint8_t* ram) {
 }
 
 uint16_t fadd(uint16_t a, uint16_t b) {
-    // Signed mantissa
-    uint16_t aM = (a >> 5) & (a & 0xFFFFF);
-    uint16_t bM = (b >> 5) & (b & 0xFFFFF);
-    uint16_t aS = (a>>15) & 0b1;
-    uint16_t bS = (b>>15) & 0b1;
+    uint16_t aM = (a & MTS_MASK);
+    uint16_t bM = (b & MTS_MASK);
+    uint16_t aS = (a>>15) & 1;
+    uint16_t bS = (b>>15) & 1;
     uint16_t aE = (a>>10) & 0b11111;
     uint16_t bE = (b>>10) & 0b11111;
 
-    if (aS) {
-        aM = ~aM + 1;
-    }
-    if (bS) {
-        bM = ~bM + 1;
-    }
+    // Add implicit 1 bit
+    aM |= 1 << 10;
+    bM |= 1 << 10;
 
     int expDiff = aE - bE;
+    std::cout << "e diff: " << std::dec << expDiff << std::endl;
     if (expDiff > 0) {
         bE += expDiff;
         bM >>= expDiff;
-        expDiff = 0;
     }
     else if (expDiff < 0) {
+        expDiff = abs(expDiff);
         aE += expDiff;
         aM >>= expDiff;
-        expDiff = 0;
     }
+
+    // Both of these have to be done after adjusting the exponents
+    // Add sign bit
+    aM |= aS << 12;
+    bM |= bS << 12;
+    // Manage two's complement format
+    if (aS) {
+        aM = ~aM + 1;
+        aM &= MTS_MASK;
+    }
+    if (bS) {
+        bM = ~bM + 1;
+        bM &= MTS_MASK;
+    }
+
+    std::cout << "aM: " << std::hex << aM << " bM: " << bM << std::endl;
     uint16_t mantissa = aM + bM;
+    uint16_t exponent = aE;
+    // Check for and handle overflow and underflow
+    if ((mantissa >> 11) & 1) {
+        exponent += 1;
+        // Make sure the sign doesn't move
+        uint16_t sign = (mantissa >> 12) & 1;
+        mantissa &= 0x3FF;
+        mantissa >>= 1;
+        mantissa |= (sign << 12);
+    }
+    std::cout << "mantissa: " << std::hex << mantissa << std::endl;
+    if ((mantissa >> 15) & 1) {
+        exponent -= 1;
+
+        // Make sure the sign doesn't move
+        uint16_t sign = (mantissa >> 12) & 1;
+        mantissa &= 0x3FF;
+        mantissa <<= 1;
+        mantissa |= (sign << 12);
+    }
 
     uint16_t sign = 0;
-    if ((mantissa >> 10) & 1) {
+    // Un-twos complement
+    if ((mantissa >> 12) & 1) {
         sign = 1;
         mantissa = ~(mantissa-1);
     }
-    mantissa &= 0xFFFFF;
-    uint16_t result = (sign << 15) & (aE << 10) & mantissa;
+    mantissa &= 0x3FF;
+    // Check for zero for properness
+    if (mantissa == 0) {
+        exponent = 0;
+        sign = 0; // Default to +0
+    }
+
+    // Truncate, because lol what's IEEE 754
+    uint16_t result = (sign << 15) | (exponent << 10) | mantissa;
+    std::cout << std::hex <<"m: "<< mantissa << " e: " << exponent << " s: " << sign << std::endl;
     return result;
 }
 
@@ -118,7 +159,6 @@ int main() {
             case DSUB: registers[op3] = registers[op1] - registers[op2]; break;
             case DMUL: registers[op3] = registers[op1] * registers[op2]; break;
             case DDIV: registers[op3] = registers[op1] / registers[op2]; break;
-            // todo implement floating point arithmetic BC DE FG
             case FADD: 
             {
                 uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
@@ -132,7 +172,7 @@ int main() {
             {
                 uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
                 uint16_t b = (registers[op2] << 8) + registers[op2+1]; 
-                b ^= 0b100000000000000000; // Flip b's sign bit
+                b ^= (1 << 15); // Flip b's sign bit
                 uint16_t result = fadd(a, b);
                 registers[op3] = result >> 8;
                 registers[op3+1] = result & 0xFFFF;
@@ -143,21 +183,27 @@ int main() {
             {
                 uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
                 uint16_t b = (registers[op2] << 8) + registers[op2+1];
-                uint16_t aM = a & 0xFFFFF;
-                uint16_t bM = b & 0xFFFFF;
+                uint16_t aM = a & 0b1111111111;
+                uint16_t bM = b & 0b1111111111;
                 uint16_t aS = (a>>15) & 0b1;
                 uint16_t bS = (b>>15) & 0b1;
                 uint16_t aE = (a>>10) & 0b11111;
                 uint16_t bE = (b>>10) & 0b11111;
+
+                // Add implicit bit
+                aM |= 1 << 10;
+                bM |= 1 << 10;
+
                 uint16_t sign = aS ^ bS;
-                uint16_t exp = aE + bE - 30; // Each offset is 15, so sub 30
+                uint16_t exp = (aE - 15) + (bE - 15);
                 uint32_t mantissa = aM * bM;
+                
                 if (mantissa & 0xFFFF0000) {
-                    mantissa <<= 1;
-                    exp -= 1;
+                    mantissa >>= 1;
+                    exp += 1;
                 }
                 mantissa &= 0xFFFFF;
-                uint16_t result = (sign << 15) & (exp << 10) & mantissa;
+                uint16_t result = (sign << 15) | (exp << 10) | mantissa;
                 std::cout << mantissa << std::endl;
                 registers[op3] = result >> 8;
                 registers[op3+1] = result & 0xFFFF;

@@ -7,5 +7,5 @@ load D 0x2
 load E 0x3
 
 ; Operate on them and store in FG
-fmul B D F
+fsub B D F
 stop
