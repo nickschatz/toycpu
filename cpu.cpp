@@ -32,16 +32,6 @@
 #define XOR   0x15
 #define NOT   0x16
 
-// Used to convert singles to binary16 results
-typedef union {
-  float f;
-  struct {
-    unsigned int mantissa : 23;
-    unsigned int exponent : 8;
-    unsigned int sign : 1;
-  } parts;
-} float_cast;
-
 
 void dumpram(uint8_t* ram) {
     std::ofstream dump;
@@ -101,8 +91,7 @@ int main() {
             case DSUB: registers[op3] = registers[op1] - registers[op2]; break;
             case DMUL: registers[op3] = registers[op1] * registers[op2]; break;
             case DDIV: registers[op3] = registers[op1] / registers[op2]; break;
-            case FADD: 
-            {
+            case FADD: {
                 uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
                 uint16_t b = (registers[op2] << 8) + registers[op2+1]; 
                 uint16_t result = fadd(a, b);
@@ -110,8 +99,7 @@ int main() {
                 registers[op3+1] = result & 0xFFFF;                
                 break;
             }
-            case FSUB:
-            {
+            case FSUB: {
                 uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
                 uint16_t b = (registers[op2] << 8) + registers[op2+1]; 
                 b ^= (1 << 15); // Flip b's sign bit
@@ -121,37 +109,34 @@ int main() {
                 
                 break;
             }
-            case FMUL: 
-            {
+            case FMUL: {
                 uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
                 uint16_t b = (registers[op2] << 8) + registers[op2+1];
-                uint16_t aM = a & 0b1111111111;
-                uint16_t bM = b & 0b1111111111;
-                uint16_t aS = (a>>15) & 0b1;
-                uint16_t bS = (b>>15) & 0b1;
-                uint16_t aE = (a>>10) & 0b11111;
-                uint16_t bE = (b>>10) & 0b11111;
-
-                // Add implicit bit
-                aM |= 1 << 10;
-                bM |= 1 << 10;
-
-                uint16_t sign = aS ^ bS;
-                uint16_t exp = (aE - 15) + (bE - 15);
-                uint32_t mantissa = aM * bM;
-                
-                if (mantissa & 0xFFFF0000) {
-                    mantissa >>= 1;
-                    exp += 1;
-                }
-                mantissa &= 0xFFFFF;
-                uint16_t result = (sign << 15) | (exp << 10) | mantissa;
-                std::cout << mantissa << std::endl;
+                half_float::half af = half_float::half();
+                std::memcpy(&af, &a, sizeof(half_float::half));
+                half_float::half bf = half_float::half();
+                std::memcpy(&bf, &b, sizeof(half_float::half));
+                uint16_t result = 0;
+                af *= bf;
+                std::memcpy(&result, &af, sizeof(uint16_t));
                 registers[op3] = result >> 8;
                 registers[op3+1] = result & 0xFFFF;
                 break;
             }
-            case FDIV: registers[op3] = registers[op1] / registers[op2]; break;
+            case FDIV: {
+                uint16_t a = (registers[op1] << 8) + registers[op1+1]; 
+                uint16_t b = (registers[op2] << 8) + registers[op2+1];
+                half_float::half af = half_float::half();
+                std::memcpy(&af, &a, sizeof(half_float::half));
+                half_float::half bf = half_float::half();
+                std::memcpy(&bf, &b, sizeof(half_float::half));
+                uint16_t result = 0;
+                af /= bf;
+                std::memcpy(&result, &af, sizeof(uint16_t));
+                registers[op3] = result >> 8;
+                registers[op3+1] = result & 0xFFFF;
+                break;
+            }
 
             case EQ: registers[op3] = (registers[op1] == registers[op2] ? 1 : 0); break;
             case GT: registers[op3] = (registers[op1] > registers[op2] ? 1 : 0); break;
