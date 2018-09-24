@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+#include "half.hpp"
 
 #define RAM_SIZE 512
 #define INSTR_REG 2
@@ -31,6 +32,16 @@
 #define XOR   0x15
 #define NOT   0x16
 
+// Used to convert singles to binary16 results
+typedef union {
+  float f;
+  struct {
+    unsigned int mantissa : 23;
+    unsigned int exponent : 8;
+    unsigned int sign : 1;
+  } parts;
+} float_cast;
+
 
 void dumpram(uint8_t* ram) {
     std::ofstream dump;
@@ -41,82 +52,13 @@ void dumpram(uint8_t* ram) {
 }
 
 uint16_t fadd(uint16_t a, uint16_t b) {
-    uint16_t aM = (a & MTS_MASK);
-    uint16_t bM = (b & MTS_MASK);
-    uint16_t aS = (a>>15) & 1;
-    uint16_t bS = (b>>15) & 1;
-    uint16_t aE = (a>>10) & 0b11111;
-    uint16_t bE = (b>>10) & 0b11111;
-
-    // Add implicit 1 bit
-    aM |= 1 << 10;
-    bM |= 1 << 10;
-
-    int expDiff = aE - bE;
-    std::cout << "e diff: " << std::dec << expDiff << std::endl;
-    if (expDiff > 0) {
-        bE += expDiff;
-        bM >>= expDiff;
-    }
-    else if (expDiff < 0) {
-        expDiff = abs(expDiff);
-        aE += expDiff;
-        aM >>= expDiff;
-    }
-
-    // Both of these have to be done after adjusting the exponents
-    // Add sign bit
-    aM |= aS << 12;
-    bM |= bS << 12;
-    // Manage two's complement format
-    if (aS) {
-        aM = ~aM + 1;
-        aM &= MTS_MASK;
-    }
-    if (bS) {
-        bM = ~bM + 1;
-        bM &= MTS_MASK;
-    }
-
-    std::cout << "aM: " << std::hex << aM << " bM: " << bM << std::endl;
-    uint16_t mantissa = aM + bM;
-    uint16_t exponent = aE;
-    // Check for and handle overflow and underflow
-    if ((mantissa >> 11) & 1) {
-        exponent += 1;
-        // Make sure the sign doesn't move
-        uint16_t sign = (mantissa >> 12) & 1;
-        mantissa &= 0x3FF;
-        mantissa >>= 1;
-        mantissa |= (sign << 12);
-    }
-    std::cout << "mantissa: " << std::hex << mantissa << std::endl;
-    if ((mantissa >> 15) & 1) {
-        exponent -= 1;
-
-        // Make sure the sign doesn't move
-        uint16_t sign = (mantissa >> 12) & 1;
-        mantissa &= 0x3FF;
-        mantissa <<= 1;
-        mantissa |= (sign << 12);
-    }
-
-    uint16_t sign = 0;
-    // Un-twos complement
-    if ((mantissa >> 12) & 1) {
-        sign = 1;
-        mantissa = ~(mantissa-1);
-    }
-    mantissa &= 0x3FF;
-    // Check for zero for properness
-    if (mantissa == 0) {
-        exponent = 0;
-        sign = 0; // Default to +0
-    }
-
-    // Truncate, because lol what's IEEE 754
-    uint16_t result = (sign << 15) | (exponent << 10) | mantissa;
-    std::cout << std::hex <<"m: "<< mantissa << " e: " << exponent << " s: " << sign << std::endl;
+    half_float::half af = half_float::half();
+    std::memcpy(&af, &a, sizeof(half_float::half));
+    half_float::half bf = half_float::half();
+    std::memcpy(&bf, &b, sizeof(half_float::half));
+    uint16_t result = 0;
+    af += bf;
+    std::memcpy(&result, &af, sizeof(uint16_t));
     return result;
 }
 
