@@ -29,7 +29,7 @@ Address | Assembler Mnemonic | Name | Description
 Instructions
 ---
 Instruction | Assembler Mnemonic | Description | OP1 | OP2 | OP3
---- | --- | --- | --- | --- | --- | ---
+--- | --- | --- | --- | --- | ---
 0x0 | NOP | No Operation | X | X | X |
 0x1 | STOP | Stop execution | X | X | X |
 0x2 | JUMP | Jump if | Address to jump to (16 bit) | Condition (0x00 to continue, any other to jump) | X |
