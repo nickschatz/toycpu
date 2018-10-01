@@ -5,30 +5,12 @@ import sys
 class CPU:
     def asm_to_machine(self, asm, ram_size):
         # Map for register literals to machine code ids
-        regmap = {"0": 0, "1": 1, "A": 2, "B": 3, "C": 4, "D": 5, "E": 6, "F": 7, "G": 8}
-        instrmap = {"nop": 0x0, 
-                    "stop": 0x1, 
-                    "jump": 0x2, 
-                    "load": 0x3, 
-                    "store": 0x4,
-                    "move": 0x5, 
-                    "add": 0x6, 
-                    "sub": 0x7, 
-                    "mul": 0x8, 
-                    "div": 0x9, 
-                    "fadd": 0xA, 
-                    "fsub": 0xB,
-                    "fmul": 0xC, 
-                    "fdiv": 0xD, 
-                    "eq": 0xE, 
-                    "gt": 0xF, 
-                    "lt": 0x10,
-                    "gte": 0x11,
-                    "lte": 0x12,
-                    "or": 0x13,
-                    "and": 0x14,
-                    "xor": 0x15,
-                    "not": 0x16,}
+        reglist = ["MODE", "CMPF", "AH", "AL", "BH", "BL", "CH", "CL", "DH", "DL", "EH", "EL", "FH", "FL", "GH", "GL"]
+        instrlist = ["NOP", "STOP", "JUMP", "SET", "LOAD", "STORE", "MOVE", 
+                     "SHR", "SHL", "AND", "OR", "NOT", "XOR", "CMP", "ADD",
+                     "SUB", "MUL", "DIV"]
+        regmap = {x: i for i,x in enumerate(reglist)}
+        instrmap = {x: i for i,x in enumerate(instrlist)}
         labelmap = {}
         machine = []
 
@@ -48,7 +30,7 @@ class CPU:
             machine_line = []
             data = line.split(" ")
             # Get the instruction
-            machine_line += [instrmap[data[0]]]
+            machine_line += [instrmap[data[0].upper()]]
             for dat in data[1:]:
                 # Parse each op part
                 if dat.startswith(":"):
@@ -74,8 +56,4 @@ if __name__ == '__main__':
         ram_size = 32
         machine = cpu.asm_to_machine(asm, ram_size)
         machine = [0] * ram_size + machine
-        machine[0] = 0x5C
-        machine[1] = 0xB0
-        machine[2] = 0x52
-        machine[3] = 0x40
         sys.stdout.buffer.write(bytes(machine))
