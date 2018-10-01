@@ -1,13 +1,30 @@
-; Counts to [0x0] from [0x1] in steps of [0x2]
-load C 0x0
-load B 0x1
-load D 0x2
+; Counts to 300
+set BH 0x0
+set BL 0x0
+
+; Increment register
+set CL 0x1
+
+; Compare register
+set DH 0x1
+set DL 0x2C
+; set DH 0x0
+; set DL 0xA
+
+; Set mode to unsigned 16 bit int
+set MODE 0x1
+; Set compare flag to GTE
+set CMPF 0x8
 
 begin:
-move B G
-add B D B
-gte B C E
-jump :end E
+; Set "output" register G
+move BH GH
+move BL GL
+
+; Increment B
+add BH CH BH
+cmp BH DH EH
+jump :end EH
 jump :begin 1
 
 end:

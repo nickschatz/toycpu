@@ -3,6 +3,7 @@
 #include <variant>
 #include <iostream>
 #include <cstring>
+#include <iostream>
 
 #ifndef NUMBERS_H
 #define NUMBERS_H
@@ -53,8 +54,8 @@ void name(uint8_t * p1, uint8_t * p2, uint8_t * resultp, uint8_t num_mode) { \
         size = m1.size; \
     } \
     /* Store result */ \
-    for (int p = 0; p < size/8; p += 1) { \
-        *(resultp + p) = (result >> (size - p - 1)) & 0xFF; \
+    for (int p = 0; p < size/8; p++) { \
+        *(resultp + p) = (result >> (size - 8*(p + 1))) & 0xFF; \
     } \
 }
 
